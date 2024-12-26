@@ -15,7 +15,7 @@ import { useContent } from 'hooks/Content';
 import { ArcaUser } from 'func/user';
 
 import { open } from 'func/window';
-import { getDocument } from 'func/http';
+import { getDocument, request } from 'func/http';
 import Info from '../FeatureInfo';
 
 const profileUrl = 'https://arca.live/u/@';
@@ -46,7 +46,7 @@ function ContextMenu({ target, closeMenu }) {
     {
       key: Info.id,
       selector: contextSelector,
-      dataExtractor: () => {
+      dataExtractor: async () => {
         if (!target) return undefined;
 
         let userElement = target;
@@ -64,28 +64,44 @@ function ContextMenu({ target, closeMenu }) {
 
         if (checkSpamAccount) {
           setProfileData(undefined);
-          fetch(`${profileUrl}${url}`)
-            .then((response) => {
-              if (!response.ok) setProfileData({ article: -1, comment: -1 });
+          if (window.location.pathname.startsWith('/b/genshinskinmode')) {
+            const res = await request(
+              `https://msmc.nahida.live/api/arcalive/${id.replace('#', '~')}`,
+              {
+                method: 'GET',
+                responseType: 'json',
+              },
+            );
 
-              return response.text();
-            })
-            .then((text) => {
-              const doc = getDocument(text);
-              if (doc.querySelector('.error-page')) {
-                setProfileData({ article: -1, comment: -1 });
-                return;
-              }
-
-              const list = [
-                ...doc.querySelectorAll(
-                  '.card-block .user-recent, .card-block .clearfix',
-                ),
-              ];
-              const article = list.findIndex((l) => l.matches('.clearfix'));
-
-              setProfileData({ article, comment: list.length - article - 1 });
+            const resParse = JSON.parse(res.responseText);
+            setProfileData({
+              article: resParse.posts,
+              comment: resParse.reviews,
             });
+          } else {
+            fetch(`${profileUrl}${url}`)
+              .then((response) => {
+                if (!response.ok) setProfileData({ article: -1, comment: -1 });
+
+                return response.text();
+              })
+              .then((text) => {
+                const doc = getDocument(text);
+                if (doc.querySelector('.error-page')) {
+                  setProfileData({ article: -1, comment: -1 });
+                  return;
+                }
+
+                const list = [
+                  ...doc.querySelectorAll(
+                    '.card-block .user-recent, .card-block .clearfix',
+                  ),
+                ];
+                const article = list.findIndex((l) => l.matches('.clearfix'));
+
+                setProfileData({ article, comment: list.length - article - 1 });
+              });
+          }
         }
 
         return { id, url };
@@ -146,9 +162,11 @@ function ContextMenu({ target, closeMenu }) {
       const articleText = `글: ${
         profileData.article === 15 ? '15 ↑' : profileData.article
       }`;
-      const commentText = `댓글: ${
-        profileData.comment === 15 ? '15 ↑' : profileData.comment
-      }`;
+      const commentText = `${
+        window.location.pathname.startsWith('/b/genshinskinmode')
+          ? '리뷰'
+          : '댓글'
+      }: ${profileData.comment === 15 ? '15 ↑' : profileData.comment}`;
       spamAccountAlert = (
         <MenuItem disabled>
           <Typography>{`${articleText} / ${commentText}`}</Typography>
